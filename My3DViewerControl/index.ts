@@ -1,7 +1,7 @@
 import { IInputs, IOutputs } from "./generated/ManifestTypes";
 import * as THREE from "three";
-import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 export class My3DViewerControl implements ComponentFramework.StandardControl<IInputs, IOutputs> {
     private _container: HTMLDivElement;
@@ -11,9 +11,9 @@ export class My3DViewerControl implements ComponentFramework.StandardControl<IIn
     private _cube: THREE.Mesh;
     private _raycaster: THREE.Raycaster;
     private _mouse: THREE.Vector2;
-    private _dragControls: DragControls;
-    private _transformControls: TransformControls;
-    private _selectedObject: THREE.Object3D | null = null;
+    private _orbitControls: OrbitControls;
+
+    
 
     constructor() {
         // nothing here
@@ -43,6 +43,21 @@ export class My3DViewerControl implements ComponentFramework.StandardControl<IIn
         this._camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
         this._camera.position.z = 2;
 
+        // Initialize OrbitControls
+        this._orbitControls = new OrbitControls(this._camera, this._renderer.domElement);
+        this._orbitControls.enableDamping = true;
+        this._orbitControls.dampingFactor = 0.25;
+        this._orbitControls.enableZoom = true;
+
+        // // Load the OBJ file
+        const url = 'https://people.sc.fsu.edu/~jburkardt/data/obj/teapot.obj';
+        const loader = new OBJLoader();
+        loader.load(url, (object) => {
+            this._scene.add(object);
+        }, undefined, (error) => {
+            console.error('An error happened', error);
+        });
+        
         // Create a cube
         const geometry = new THREE.BoxGeometry();
         const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Use MeshStandardMaterial for better lighting
@@ -75,24 +90,10 @@ export class My3DViewerControl implements ComponentFramework.StandardControl<IIn
         container.addEventListener('click', this.onMouseClick.bind(this), false);
         container.addEventListener('mousemove', this.onMouseMove.bind(this), false);
 
-        // Initialize DragControls and TransformControls
-        this._dragControls = new DragControls([this._cube], this._camera, this._renderer.domElement);
-        this._transformControls = new TransformControls(this._camera, this._renderer.domElement);
-        this._scene.add(this._transformControls);
-
-        this._dragControls.addEventListener('dragstart', (event) => {
-            this._transformControls.detach();
-            this._selectedObject = event.object;
-        });
-
-        this._dragControls.addEventListener('dragend', (event) => {
-            this._transformControls.attach(event.object);
-            this._selectedObject = null;
-        });
-
         // Render the scene
         const animate = () => {
             requestAnimationFrame(animate);
+            this._orbitControls.update(); // Update orbit controls
             this._renderer.render(this._scene, this._camera);
         };
         animate();
@@ -106,7 +107,6 @@ export class My3DViewerControl implements ComponentFramework.StandardControl<IIn
 
     // Change color on mouse click to check the 3D scene is interactable.
     private onMouseClick(event: MouseEvent): void {
-        
         // Update the raycaster with the mouse position and the camera
         this._raycaster.setFromCamera(this._mouse, this._camera);
 
@@ -131,7 +131,6 @@ export class My3DViewerControl implements ComponentFramework.StandardControl<IIn
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): void {
-        
         // Change the render size depending on the parent container (the container that is inside the Canvas App)
         const width = context.mode.allocatedWidth;
         const height = context.mode.allocatedHeight;
@@ -139,7 +138,6 @@ export class My3DViewerControl implements ComponentFramework.StandardControl<IIn
         this._renderer.setSize(width, height);
         this._camera.aspect = width / height;
         this._camera.updateProjectionMatrix();
-
     }
 
     public getOutputs(): IOutputs {
